@@ -1,0 +1,76 @@
+FuRegisterClass("Map1D3", CT_Tool, {
+   REGS_Category = "Analysis",
+   REGS_OpIconString = "M1D3",
+   REGS_OpDescription = "Graphs a 1Dx3 tone curve",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+black = Pixel({R = 0, G = 0, B = 0, A = 1})
+red = Pixel({R = 1, G = 0, B = 0, A = 1})
+green = Pixel({R = 0, G = 1, B = 0, A = 1})
+blue = Pixel({R = 0, G = 0, B = 1, A = 1})
+
+function Create()
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+
+	local input = InputLink:GetValue(req)
+	local dim = input.Width
+	
+	local output = Image({IMG_Like = input, IMG_Width = dim, IMG_Height = dim, IMG_Depth = 8})
+	
+	local graphR = Image({IMG_Like = output})
+	local graphG = Image({IMG_Like = output})
+	local graphB = Image({IMG_Like = output})
+	
+	local grid = Image({IMG_Like = output})
+	local text = Image({IMG_Like = output})
+	
+	
+	output:Fill(black)
+	
+	graphR:Fill(black)
+	graphG:Fill(black)
+	graphB:Fill(black)
+	
+	for x = 0, dim-1 do
+		local y = Pixel()
+		input:GetPixel(x, 0, y)
+		
+		-- detect if pixels are NaN
+		if y.R ~= y.R or y.G ~= y.G or y.B ~= y.B then goto continue end
+		
+		-- add point to graph
+		graphR:SetPixel(x, Clamp(y.R*(dim-1), 0, dim-1), red)
+		graphG:SetPixel(x, Clamp(y.G*(dim-1), 0, dim-1), green)
+		graphB:SetPixel(x, Clamp(y.B*(dim-1), 0, dim-1), blue)
+		
+		-- this is here so we can skip adding points if the pixel value is NaN
+		::continue::
+	end
+	
+	output:Merge(grid, { MO_ApplyMode = "Screen" })
+	output:Merge(graphR, { MO_ApplyMode = "Screen" })
+	output:Merge(graphG, { MO_ApplyMode = "Screen" })
+	output:Merge(graphB, { MO_ApplyMode = "Screen" })
+	output:Merge(text, { MO_ApplyMode = "Screen" })
+	
+	OutputLink:Set(req, output)
+end
+
+function Clamp(x, min, max)
+    return math.max(min, math.min(max, x))
+end

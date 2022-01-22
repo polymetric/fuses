@@ -1,0 +1,61 @@
+FuRegisterClass("ImageDiff", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "ImgDiff",
+   REGS_OpDescription = "Calculates the difference between two images",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InputLinkA = self:AddInput("Input A", "InputA", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	InputLinkB = self:AddInput("Input B", "InputB", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input_a = InputLinkA:GetValue(req)
+	local input_b = InputLinkB:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	
+	local total = 0
+	
+	-- output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		-- total_a = total_a + (p.)
+		-- return p
+	-- end)
+	
+	for y = 0, input_a.Height - 1 do
+		for x = 0, input_a.Width - 1 do
+			p_a = Pixel()
+			p_b = Pixel()
+			input_a:GetPixel(x, y, p_a)
+			input_b:GetPixel(x, y, p_b)
+			
+			if p_a.A < 1.0 or p_b.A < 1.0 then
+				goto continue
+			end
+			
+			total = total + (math.max(p_a.R, p_b.R) - math.min(p_a.R, p_b.R))
+			total = total + (math.max(p_a.G, p_b.G) - math.min(p_a.G, p_b.G))
+			total = total + (math.max(p_a.B, p_b.B) - math.min(p_a.B, p_b.B))
+			::continue::
+		end
+	end
+	
+	print((total/(input_a.Height*input_a.Width*3))*100 .. " " .. req.Time)
+	
+	OutputLink:Set(req, output)
+end

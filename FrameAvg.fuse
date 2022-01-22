@@ -1,0 +1,44 @@
+FuRegisterClass("AvgColorIntraframe", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "AvgClrIF",
+   REGS_OpDescription = "computes the average RGB value of each individual frame",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+		
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local img_in = InputLink:GetValue(req)
+	local img_out = Image({IMG_Like = img_in})
+	
+	local total_r = 0
+	local total_g = 0
+	local total_b = 0
+	
+	img_out:ProcessPixels(0, 0, img_in.Width, img_in.Height, img_in, function(x, y, p)
+		total_r = total_r + p.R
+		total_g = total_g + p.G
+		total_b = total_b + p.B
+	end)
+	
+	total_r = total_r / (img_in.Width * img_in.Height)
+	total_g = total_g / (img_in.Width * img_in.Height)
+	total_b = total_b / (img_in.Width * img_in.Height)
+	
+	print(total_r .. " " .. total_g .. " " .. total_b)
+	
+	OutputLink:Set(req, img_in)
+end

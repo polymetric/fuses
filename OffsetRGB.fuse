@@ -1,0 +1,73 @@
+FuRegisterClass("OffsetRGB", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "OFFSRGB",
+   REGS_OpDescription = "RGB Offset",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+-- PARAMETERS
+
+function Create()
+	InROffs = self:AddInput("Red Offset", "RedOffs", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = -1.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 0.0,
+		ICS_Name = "Min",
+		IC_ControlGroup = 1,
+		IC_ControlID = 0,
+	})
+		
+	InGOffs = self:AddInput("Green Offset", "GreenOffs", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = -1.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 0.0,
+		IC_ControlGroup = 1,
+		IC_ControlID = 1,
+	})
+		
+	InBOffs = self:AddInput("Blue Offset", "BlueOffs", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = -1.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 0.0,
+		IC_ControlGroup = 1,
+		IC_ControlID = 2,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local r_offs = InROffs:GetValue(req).Value
+	local g_offs = InGOffs:GetValue(req).Value
+	local b_offs = InBOffs:GetValue(req).Value
+	
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input})
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		p.R = p.R + r_offs
+		p.G = p.G + g_offs
+		p.B = p.B + b_offs
+		
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end

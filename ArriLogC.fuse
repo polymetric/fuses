@@ -1,0 +1,112 @@
+FuRegisterClass("ArriLogC", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "ArriLogC",
+   REGS_OpDescription = "Encode/Decode Arri LogC",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+-- exposure value parameters
+
+local cut = 0.010591
+local a = 5.555556
+local b = 0.052272
+local c = 0.247190
+local d = 0.385537
+local e = 5.367655
+local f = 0.092809
+
+function Create()
+	InMode = self:AddInput("Mode", "Mode", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Encode", },
+		{ CCS_AddString = "Decode", },
+		CC_LabelPosition = "Horizontal",
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InLinearType = self:AddInput("Linear Type", "LinearType", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Scene Linear", },
+		{ CCS_AddString = "Sensor Linear", },
+		CC_LabelPosition = "Horizontal",
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	
+	local mode = InMode:GetValue(req).Value
+	local lin_type = InLinearType:GetValue(req).Value
+	
+	print(lin_type)
+	
+	if lin_type == 0 then
+		cut = 0.010591
+		a = 5.555556
+		b = 0.052272
+		c = 0.247190
+		d = 0.385537
+		e = 5.367655
+		f = 0.092809
+	elseif lin_type == 1 then
+		cut = 0.004201
+		a = 200.0
+		b = -0.729169
+		c = 0.247190
+		d = 0.385537
+		e = 193.235573
+		f = -0.662201
+	end
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		if mode == 0 then
+			p.R = encode(p.R)
+			p.G = encode(p.G)
+			p.B = encode(p.B)
+		elseif mode == 1 then
+			p.R = decode(p.R)
+			p.G = decode(p.G)
+			p.B = decode(p.B)
+		end
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function encode(x)
+	if x > cut then
+		return c * math.log10(a * x + b) + d
+	else
+		return e * x + f
+	end
+end
+
+function decode(x)
+	if x > e * cut + f then
+		return (math.pow(10, (x - d) / c) - b) / a
+	else
+		return (x - f) / e
+	end
+end

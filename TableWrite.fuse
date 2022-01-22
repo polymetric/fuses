@@ -1,0 +1,67 @@
+FuRegisterClass("TableWrite", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "TWR",
+   REGS_OpDescription = "",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InFile = self:AddInput("File", "File", {
+		LINKID_DataType = "Text",
+		INPID_InputControl =  "FileControl",
+		FC_IsSaver = true,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+		
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local img_in = InputLink:GetValue(req)
+	local img_out = Image({IMG_Like = img_in})
+	local points = img_in.Width
+	local file = io.open(InFile:GetValue(req).Value, "w");
+	io.output(file)
+	
+	local table_r = {}
+	local table_g = {}
+	local table_b = {}
+	
+	print()
+	print("NEW FRAME")
+	print(points)
+	print()
+	
+	-- this actually scans the source and target charts and creates a sparse lookup table,
+	-- its dimension equal to the number of patches on whichever chart is shortest
+	for x = 1, img_in.Width do
+		for y = 1, img_in.Height do
+			p = Pixel()
+			
+			img_in:GetPixel(x - 1, y - 1, p)
+			
+			table_r[x] = p.R
+			table_g[x] = p.G
+			table_b[x] = p.B
+			
+			print(table_r[x] .. " " .. table_g[x] .. " " .. table_b[x])
+			io.write(table_r[x] .. " " .. table_g[x] .. " " .. table_b[x] .. "\n")
+			-- print(table_r[x])
+			-- io.write(table_r[x] .. "\n")
+		end
+	end
+	
+	-- io.close(file)
+	
+	OutputLink:Set(req, img_in)
+end

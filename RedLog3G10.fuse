@@ -1,0 +1,76 @@
+FuRegisterClass("RedLog3G10", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "RedLog3G10",
+   REGS_OpDescription = "Encode Log3G10",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+local a = 0.224282
+local b = 155.975327
+local c = 0.01
+local g = 15.1927
+
+function Create()
+	InMode = self:AddInput("Mode", "Mode", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Encode", },
+		{ CCS_AddString = "Decode", },
+		CC_LabelPosition = "Horizontal",	
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	
+	local mode = InMode:GetValue(req).Value
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		if mode == 0 then
+			p.R = encode(p.R)
+			p.G = encode(p.G)
+			p.B = encode(p.B)
+		elseif mode == 1 then
+			p.R = decode(p.R)
+			p.G = decode(p.G)
+			p.B = decode(p.B)
+		end
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function encode(x)
+	x = x + c
+	if x < 0 then
+		return x*g
+	end
+	output = a*math.log10((x*b)+1)
+	return output
+end
+
+function decode(x)
+	if x < 0 then
+		return (x/g)-c
+	end
+	output = (math.pow(10,x/a)-1)/b
+	return output -c
+end

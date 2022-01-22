@@ -1,0 +1,89 @@
+FuRegisterClass("HDRThing2", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "HDRT2",
+   REGS_OpDescription = "HDR Thing",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+-- PARAMETERS
+
+function Create()
+	-- clip determines the threshold where the base image gets bright enough that you start transitioning into the darker image
+	InClipPoint = self:AddInput("Clip Point", "Clip Point", {
+		LINKS_Name = "Clip Point",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 2,
+		INP_MinScale = 0,
+		INP_Default = 0,
+		ICD_Center = 0,
+	})
+	
+	-- exposure delta is the difference in stops between the two images
+	InExpDelta = self:AddInput("Exposure Delta", "Exposure Delta", {
+		LINKS_Name = "Exposure Delta",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 10,
+		INP_MinScale = 0,
+		INP_Default = 0,
+		ICD_Center = 0,
+	})
+
+	-- base is the brighter image
+	BaseLink = self:AddInput("Base", "Base", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	-- top is the darker image
+	TopLink = self:AddInput("Top", "Top", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local base = BaseLink:GetValue(req)
+	local top = TopLink:GetValue(req)
+	local output = Image({IMG_Like = base, IMG_Depth = 8})
+	local p_top = Pixel()
+	
+	local clip = InClipPoint:GetValue(req).Value
+	local exp_delta = InExpDelta:GetValue(req).Value
+	
+	output:ProcessPixels(0, 0, base.Width, base.Height, base, function(x, y, p_base)
+		top:GetPixel(x, y, p_top)
+		p_base.R = Thing(p_base.R, p_top.R, clip, exp_delta)
+		p_base.G = Thing(p_base.G, p_top.G, clip, exp_delta)
+		p_base.B = Thing(p_base.B, p_top.B, clip, exp_delta)
+		
+		return p_base
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+-- all the Thing() function does is basically look at the base image (the brighter one)
+-- and lerps between base and top based on how close you are to the clipping threshold
+function Thing(p_base, p_top, clip, exp_delta)
+	return Map(Clamp(Map(p_base, clip/(2 ^ exp_delta), clip, 0, 1), 0, 1), 0, 1, p_base / (2 ^ exp_delta), p_top)
+end
+
+function Clamp(x, min, max)
+    return math.max(min, math.min(max, x))
+end
+
+function Map(x, in_min, in_max, out_min, out_max)
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+end

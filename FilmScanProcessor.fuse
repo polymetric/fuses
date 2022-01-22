@@ -1,0 +1,149 @@
+FuRegisterClass("FilmScanProcessor", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "FSP",
+   REGS_OpDescription = "Linear film scan to Cineon",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+-- PARAMETERS
+
+-- d_min_R = 0.0842208117247
+-- d_min_G = 0.3664726316929
+-- d_min_B = 0.6516954898834
+
+d_range = 2.048
+cv_d_min = 95 / 1023
+-- d_min_detect = false
+
+local clock = os.clock
+function sleep(n)
+  -- seconds
+  local t0 = clock()
+  while clock() - t0 <= n do
+  end
+end
+
+function Create()
+	InDminDetect = self:AddInput("Dmin Detect", "DminDetect", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Enabled", },
+		{ CCS_AddString = "Disabled", },
+		CC_LabelPosition = "Horizontal",	
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InDminR = self:AddInput("Dmin R", "DminR", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 5.0,
+		INP_Default = 1.0,
+		ICD_Center = 0.0,
+		ICS_Name = "Dmin",
+		IC_ControlGroup = 1,
+		IC_ControlID = 0,
+	})
+	
+	InDminG = self:AddInput("Dmin G", "DminG", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 5.0,
+		INP_Default = 1.0,
+		ICD_Center = 0.0,
+		IC_ControlGroup = 1,
+		IC_ControlID = 1,
+	})
+	
+	InDminB = self:AddInput("Dmin B", "DminB", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 5.0,
+		INP_Default = 1.0,
+		ICD_Center = 0.0,
+		IC_ControlGroup = 1,
+		IC_ControlID = 2,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	local d_min_detect = InDminDetect:GetValue(req).Value
+	local d_min_R = InDminR:GetValue(req).Value
+	local d_min_G = InDminG:GetValue(req).Value
+	local d_min_B = InDminB:GetValue(req).Value
+
+	print(d_min_detect)
+
+	if d_min_detect == 0 then
+		d_min_R = 10
+		d_min_G = 10
+		d_min_B = 10
+	end
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		p.R = Linear_to_Density(p.R)
+		p.G = Linear_to_Density(p.G)
+		p.B = Linear_to_Density(p.B)
+		
+		if d_min_detect == 0 then
+			-- if d_min_R > p.R then d_min_R = p.R end
+			-- if d_min_G > p.G then d_min_G = p.G end
+			-- if d_min_B > p.B then d_min_B = p.B end
+			
+			return p
+		else
+			p.R = p.R - d_min_R
+			p.G = p.G - d_min_G
+			p.B = p.B - d_min_B
+			
+			p.R = p.R / d_range
+			p.G = p.G / d_range
+			p.B = p.B / d_range
+			
+			p.R = p.R + cv_d_min
+			p.G = p.G + cv_d_min
+			p.B = p.B + cv_d_min
+			
+			-- p.R = Clamp(p.R, 0, 1)
+			-- p.G = Clamp(p.G, 0, 1)
+			-- p.B = Clamp(p.B, 0, 1)
+		end
+		
+		return p
+	end)
+	
+	print(d_min_R)
+	print(d_min_G)
+	print(d_min_B)
+	print()
+	
+	OutputLink:Set(req, output)
+end
+
+function Linear_to_Density(x)
+	return math.log10(1 / x)
+end
+
+function Clamp(x, min, max)
+    return math.max(min, math.min(max, x))
+end
+
+function Map(x, in_min, in_max, out_min, out_max)
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+end

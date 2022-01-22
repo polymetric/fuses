@@ -1,0 +1,80 @@
+FuRegisterClass("DynamicRangeChartReference", CT_Tool, {
+   REGS_Category = "Analysis",
+   REGS_OpIconString = "DRCR",
+   REGS_OpDescription = "Generates the ideal values for a dynamic range testing chart in Linear XYZ space (Equal Energy white point)",
+   
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+black = Pixel({R = 0, G = 0, B = 0, A = 1})
+
+function Create()
+	InPatches = self:AddInput("Patches", "Patches", {
+		LINKS_Name = "Stops +/- mid gray",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = true,
+		INP_MaxScale = 10,
+		INP_MinScale = 0,
+		INP_Default = 10,
+		ICD_Center = 0,
+	})
+	
+	InMidGray = self:AddInput("MidGray", "MidGray", {
+		LINKS_Name = "Middle Gray Luminance",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 1,
+		INP_MinScale = 0,
+		INP_Default = 0.184187,
+		ICD_Center = 0,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	patches = InPatches:GetValue(req).Value
+	mid_gray = InMidGray:GetValue(req).Value
+
+	local image_attribs = {
+		IMG_Width = patches*2+1,
+		IMG_Height = 1,
+		IMG_Depth = 8, 
+		IMG_XScale = 1.0,
+		IMG_YScale = 1.0,
+		IMG_Quality = not req:IsQuick(),
+		IMG_MotionBlurQuality = not req:IsNoMotionBlur(),
+		IMG_Document = self.Comp,
+		{ IMG_Channel = "Red", },
+		{ IMG_Channel = "Green", },
+		{ IMG_Channel = "Blue", },
+		{ IMG_Channel = "Alpha", },
+	}
+	
+	if not req:IsStampOnly() then
+		image_attribs.IMG_ProxyScale = 1
+	end
+	
+	if SourceDepth ~= 0 then
+		image_attribs.IMG_Depth = SourceDepth
+	end
+	
+	local output = Image(image_attribs)
+	
+	output:Fill(black)
+	
+	for x = 0, output.Width do
+		p = mid_gray * (2 ^ (x - patches))
+		output:SetPixel(x, 0, Pixel({R = p, G = p, B = p, A = 1}))
+	end
+	
+	OutputLink:Set(req, output)
+end

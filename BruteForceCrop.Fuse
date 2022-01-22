@@ -1,0 +1,39 @@
+FuRegisterClass("BruteForceCrop", CT_Tool, {
+	REGS_Category = "Transform",
+	REGS_OpIconString = "BFC",
+	REGS_OpDescription = "Tries various different crop values in order to find the right one",
+	REG_NoAutoProxy = true,
+	REG_NoMotionBlurCtrls = true,
+	REG_NoObjMatCtrls = true,
+	REG_NoBlendCtrls = true,
+	REG_OpNoMask = true,
+})
+	
+function Create()	
+	InImage = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+		})
+
+	OutImage = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+		})
+end
+
+function Process(req) 
+	local img = InImage:GetValue(req)
+		
+	local out = Image({
+		IMG_Like = img,
+		IMG_Width = 512,
+		IMG_Height = 512,
+	})
+
+	img:Crop(out, {
+		CROP_XOffset = math.floor(img.Width  * center.X - (img.Width  * width  / 2) + 0.5), 
+		CROP_YOffset = math.floor(img.Height * center.Y - (img.Height * height / 2) + 0.5),
+	})
+	
+	OutImage:Set(req, out)
+end

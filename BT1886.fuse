@@ -1,0 +1,111 @@
+FuRegisterClass("BT1886", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "BT1886",
+   REGS_OpDescription = "Encode BT.1886",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InMode = self:AddInput("Mode", "Mode", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Encode", },
+		{ CCS_AddString = "Decode", },
+		CC_LabelPosition = "Horizontal",	
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InWL = self:AddInput("White Level", "WhiteLevel", {
+		LINKS_Name = "White Level",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_MaxScale = 300.0,
+		INP_Default = 1.0,
+		ICD_Center = 0.0,
+	})
+	
+	InBL = self:AddInput("Black Level", "BlackLevel", {
+		LINKS_Name = "Black Level",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_MaxScale = 10.0,
+		INP_Default = 1/1000,
+		ICD_Center = 0.0,
+	})
+	
+	InClipBlacks = self:AddInput("Clip Blacks", "Clip Blacks", {
+		LINKS_Name = "Clip Blacks",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 1.0,
+		ICD_Width = 1.0,
+	})
+	
+	-- InY = self:AddInput("Gamma", "Gamma", {
+		-- LINKS_Name = "Gamma",
+		-- LINKID_DataType = "Number",
+		-- INPID_InputControl = "SliderControl",
+		-- INP_MaxScale = 10.0,
+		-- INP_Default = 2.4,
+		-- ICD_Center = 0.0,
+	-- })
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	
+	local mode = InMode:GetValue(req).Value
+	local l_w = InWL:GetValue(req).Value
+	local l_b = InBL:GetValue(req).Value
+	-- local g = InY:GetValue(req).Value
+	local g = 2.4
+	local a = (l_w ^ (1 / g) - l_b ^ (1 / g)) ^ g
+	local b = (l_b ^ (1 / g)) / (l_w ^ (1 / g) - l_b ^ (1 / g))
+	local clip_blacks = InClipBlacks:GetValue(req).Value
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		if mode == 0 then
+			p.R = encode(p.R, g, a, b)
+			p.G = encode(p.G, g, a, b)
+			p.B = encode(p.B, g, a, b)
+		elseif mode == 1 then
+			p.R = decode(p.R, g, a, b)
+			p.G = decode(p.G, g, a, b)
+			p.B = decode(p.B, g, a, b)
+		end
+		if clip_blacks == 1 then
+			p.R = math.max(p.R, 0)
+			p.G = math.max(p.G, 0)
+			p.B = math.max(p.B, 0)
+		end
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function encode(l, y, a, b)
+	-- print(y)
+	return (l/a)^(1/y)-b
+end
+
+function decode(v, y, a, b)
+	return a*(math.max((v+b),0))^y
+end

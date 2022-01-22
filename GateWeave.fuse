@@ -1,0 +1,75 @@
+FuRegisterClass("GateWeave", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "GWV",
+   REGS_OpDescription = "film gate weave",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InRed = self:AddInput("X Amount", "X Amount", {
+		LINKS_Name = "X Amount",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 1,
+		INP_MinScale = 0,
+		INP_Default = .5,
+		ICD_Center = 0,
+	})
+	
+	InRed = self:AddInput("Y Amount", "Y AMount", {
+		LINKS_Name = "Y Amount",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 1,
+		INP_MinScale = 0,
+		INP_Default = .5,
+		ICD_Center = 0,
+	})
+	
+	InRed = self:AddInput("X Speed", "X Speed", {
+		LINKS_Name = "X Speed",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 1,
+		INP_MinScale = 0,
+		INP_Default = .5,
+		ICD_Center = 0,
+	}) 
+	
+	InRed = self:AddInput("Y Speed", "Y Speed", {
+		LINKS_Name = "Y Speed",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 1,
+		INP_MinScale = 0,
+		INP_Default = .5,
+		ICD_Center = 0,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local img = InputLink:GetValue(req)
+	
+	img:Transform({
+		XF_EdgeMode
+	})
+	
+	OutputLink:Set(req, img)
+end

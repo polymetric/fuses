@@ -1,0 +1,101 @@
+FuRegisterClass("LightMeter", CT_Tool, {
+   REGS_Category = "Analysis",
+   REGS_OpIconString = "LM",
+   REGS_OpDescription = "Provides information about the average color of the input",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InLogType = self:AddInput("Input Type", "Input Type", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Linear", },
+		{ CCS_AddString = "Log10", },
+		{ CCS_AddString = "Cineon", },
+		{ CCS_AddString = "Arri LogC", },
+		{ CCS_AddString = "Red Log3G10", },
+		CC_LabelPosition = "Horizontal",	
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function log_decode(x, log_type)
+	if log_type == 0 then
+		-- already linear
+		return x
+	elseif log_type == 1 then
+		-- common log 10
+		return 10 ^ x
+	elseif log_type == 2 then
+		-- cineon
+		-- not implemented
+		-- friggin cineon is super hard to figure out and i never use it
+	elseif log_type == 3 then
+		local cut = 0.010591
+		local a = 5.555556
+		local b = 0.052272
+		local c = 0.247190
+		local d = 0.385537
+		local e = 5.367655
+		local f = 0.092809
+		
+		if x > e * cut + f then
+			return (math.pow(10, (x - d) / c) - b) / a
+		else
+			return (x - f) / e
+		end
+	end
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local log_type = InLogType:GetValue(req).Value
+	local sum = 0
+	local qty = 0
+	local max = 0
+	local min = 1000000000
+	
+	input:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		-- delog
+		p.R = log_decode(p.R, log_type)
+		p.G = log_decode(p.G, log_type)
+		p.B = log_decode(p.B, log_type)
+		max = math.max(max, p.R)
+		max = math.max(max, p.G)
+		max = math.max(max, p.B)
+		min = math.min(min, p.R)
+		min = math.min(min, p.G)
+		min = math.min(min, p.B)
+	
+		sum = sum + p.R
+		sum = sum + p.G
+		sum = sum + p.B
+		qty = qty + 3
+		return p
+	end)
+	
+	sum = sum / qty
+	stops = math.log(sum, 2) - math.log(0.18, 2)
+	print("min luminance: "..min)
+	print("max luminance: "..max)
+	print("avg luminance: "..sum)
+	print("stops +/- middle gray: "..stops)
+	print("zone: "..math.floor(stops+5.5))
+	
+	OutputLink:Set(req, input)
+end

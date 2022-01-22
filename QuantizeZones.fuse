@@ -1,0 +1,69 @@
+FuRegisterClass("QuantizeZones", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "QZ",
+   REGS_OpDescription = "Quantize zones",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InTenthStop = self:AddInput("Tenth Stop", "Tenth Stop", {
+		LINKS_Name = "Tenth Stop",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 1.0,
+		ICD_Width = 1.0,
+	})
+	
+	InLeaveLog = self:AddInput("Leave Log", "Leave Log", {
+		LINKS_Name = "Leave Log",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 0.0,
+		ICD_Width = 1.0,
+	})
+	
+	InClip = self:AddInput("Clip", "Clip", {
+		LINKS_Name = "Clip",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 1.0,
+		ICD_Width = 1.0,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	local tenthstop = InTenthStop:GetValue(req).Value ~= 0
+	local leavelog = InLeaveLog:GetValue(req).Value ~= 0
+	local clip = InClip:GetValue(req).Value ~= 0
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		p.R = (leavelog and 1 or 2)^(math.floor(math.log(p.R/.18, 2)*(tenthstop and 10 or 1)+.5)/(tenthstop and 10 or 1))*(leavelog and 1 or .18)
+		p.G = (leavelog and 1 or 2)^(math.floor(math.log(p.G/.18, 2)*(tenthstop and 10 or 1)+.5)/(tenthstop and 10 or 1))*(leavelog and 1 or .18)
+		p.B = (leavelog and 1 or 2)^(math.floor(math.log(p.B/.18, 2)*(tenthstop and 10 or 1)+.5)/(tenthstop and 10 or 1))*(leavelog and 1 or .18)
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function encode1886(l, y, a, b)
+	return (l/a)^(1/y)-b
+end

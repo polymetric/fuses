@@ -1,0 +1,66 @@
+FuRegisterClass("PlotThing", CT_Tool, {
+   REGS_Category = "Fuses",
+   REGS_OpIconString = "PT",
+   REGS_OpDescription = "Thing that kind of plots things but not that well",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+black = Pixel({R = 0, G = 0, B = 0, A = 1})
+red = Pixel({R = 1, G = 0, B = 0, A = 1})
+green = Pixel({R = 0, G = 0, B = 1, A = 1})
+blue = Pixel({R = 0, G = 1, B = 0, A = 1})
+
+function Create()
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	
+	-- print()
+	-- print("NEW FRAME")
+	-- print()
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		if p.R > .45 and p.G < .1 and p.B < .1 then
+			-- red
+			return p
+		elseif p.G > .45 and p.R < .1 and p.B < .1 then
+		-- some kodak charts use a weird (more yellow) green for their plots.
+		-- use the 2nd version of this if statement if that's the case:
+		-- elseif p.G > .45 and p.R > .45 and p.B < .1 then
+			-- green
+			return p
+		elseif p.B > .45 and p.R < .1 and p.G < .1 then
+			-- blue
+			thing(x, y)
+			return p
+		else
+			return black
+		end
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function thing(x, y)
+	x = map(x, 0, 813, -4, 2)
+	y = map(y, 0, 453, 0, 3)
+	-- print(x .. " " .. y)
+end
+
+function map(x, in_min, in_max, out_min, out_max)
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+end

@@ -1,0 +1,411 @@
+FuRegisterClass("TetrahedralExpression", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "TetrahedralExpression",
+   REGS_OpDescription = "TetrahedralExpression",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+-- PARAMETERS
+
+function Create()
+	InRedX = self:AddInput("Red X", "Red X", {
+		LINKS_Name = "Red X",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 1,
+		IC_ControlID = 0,
+	})
+	
+	InRedY = self:AddInput("Red Y", "Red Y", {
+		LINKS_Name = "Red Y",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 1,
+		IC_ControlID = 1,
+	})
+	
+	InRedZ = self:AddInput("Red Z", "Red Z", {
+		LINKS_Name = "Red Z",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 1,
+		IC_ControlID = 2,
+	})
+	
+	InGreenX = self:AddInput("Green X", "Green X", {
+		LINKS_Name = "Green X",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 2,
+		IC_ControlID = 0,
+	})
+	
+	InGreenY = self:AddInput("Green Y", "Green Y", {
+		LINKS_Name = "Green Y",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 2,
+		IC_ControlID = 1,
+	})
+	
+	InGreenZ = self:AddInput("Green Z", "Green Z", {
+		LINKS_Name = "Green Z",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 2,
+		IC_ControlID = 2,
+	})
+	
+	InBlueX = self:AddInput("Blue X", "Blue X", {
+		LINKS_Name = "Blue X",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 3,
+		IC_ControlID = 0,
+	})
+	
+	InBlueY = self:AddInput("Blue Y", "Blue Y", {
+		LINKS_Name = "Blue Y",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 3,
+		IC_ControlID = 1,
+	})
+	
+	InBlueZ = self:AddInput("Blue Z", "Blue Z", {
+		LINKS_Name = "Blue Z",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 3,
+		IC_ControlID = 2,
+	})
+	
+	InCyanX = self:AddInput("Cyan X", "Cyan X", {
+		LINKS_Name = "Cyan X",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 4,
+		IC_ControlID = 0,
+	})
+	
+	InCyanY = self:AddInput("Cyan Y", "Cyan Y", {
+		LINKS_Name = "Cyan Y",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 4,
+		IC_ControlID = 1,
+	})
+	
+	InCyanZ = self:AddInput("Cyan Z", "Cyan Z", {
+		LINKS_Name = "Cyan Z",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 4,
+		IC_ControlID = 2,
+	})
+	
+	InMagentaX = self:AddInput("Magenta X", "Magenta X", {
+		LINKS_Name = "Magenta X",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 5,
+		IC_ControlID = 0,
+	})
+	
+	InMagentaY = self:AddInput("Magenta Y", "Magenta Y", {
+		LINKS_Name = "Magenta Y",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 5,
+		IC_ControlID = 1,
+	})
+	
+	InMagentaZ = self:AddInput("Magenta Z", "Magenta Z", {
+		LINKS_Name = "Magenta Z",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 5,
+		IC_ControlID = 2,
+	})
+	
+	InYellowX = self:AddInput("Yellow X", "Yellow X", {
+		LINKS_Name = "Yellow X",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 6,
+		IC_ControlID = 0,
+	})
+	
+	InYellowY = self:AddInput("Yellow Y", "Yellow Y", {
+		LINKS_Name = "Yellow Y",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 6,
+		IC_ControlID = 1,
+	})
+	
+	InYellowZ = self:AddInput("Yellow Z", "Yellow Z", {
+		LINKS_Name = "Yellow Z",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 6,
+		IC_ControlID = 2,
+	})
+	
+	InWhiteX = self:AddInput("White X", "White X", {
+		LINKS_Name = "White X",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 7,
+		IC_ControlID = 0,
+	})
+	
+	InWhiteY = self:AddInput("White Y", "White Y", {
+		LINKS_Name = "White Y",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 7,
+		IC_ControlID = 1,
+	})
+	
+	InWhiteZ = self:AddInput("White Z", "White Z", {
+		LINKS_Name = "White Z",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 7,
+		IC_ControlID = 2,
+	})
+	
+	InBlackX = self:AddInput("Black X", "Black X", {
+		LINKS_Name = "Black X",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 8,
+		IC_ControlID = 0,
+	})
+	
+	InBlackY = self:AddInput("Black Y", "Black Y", {
+		LINKS_Name = "Black Y",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 8,
+		IC_ControlID = 1,
+	})
+	
+	InBlackZ = self:AddInput("Black Z", "Black Z", {
+		LINKS_Name = "Black Z",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MaxScale = 2.0,
+		INP_MinScale = -2.0,
+		INP_Default = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 8,
+		IC_ControlID = 2,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+
+end
+
+local maf = require 'maf'
+
+local vec3 = maf.vector
+
+function Process(req)
+	local redx     = InRedX:GetValue(req).Value
+	local redy     = InRedY:GetValue(req).Value
+	local redz     = InRedZ:GetValue(req).Value
+	local greenx   = InGreenX:GetValue(req).Value
+	local greeny   = InGreenY:GetValue(req).Value
+	local greenz   = InGreenZ:GetValue(req).Value
+	local bluex    = InBlueX:GetValue(req).Value
+	local bluey    = InBlueY:GetValue(req).Value
+	local bluez    = InBlueZ:GetValue(req).Value
+	local cyanx    = InCyanX:GetValue(req).Value
+	local cyany    = InCyanY:GetValue(req).Value
+	local cyanz    = InCyanZ:GetValue(req).Value
+	local magentax = InMagentaX:GetValue(req).Value
+	local magentay = InMagentaY:GetValue(req).Value
+	local magentaz = InMagentaZ:GetValue(req).Value
+	local yellowx  = InYellowX:GetValue(req).Value
+	local yellowy  = InYellowY:GetValue(req).Value
+	local yellowz  = InYellowZ:GetValue(req).Value
+	local whitex   = InWhiteX:GetValue(req).Value
+	local whitey   = InWhiteY:GetValue(req).Value
+	local whitez   = InWhiteZ:GetValue(req).Value
+	local blackx   = InBlackX:GetValue(req).Value
+	local blacky   = InBlackY:GetValue(req).Value
+	local blackz   = InBlackZ:GetValue(req).Value
+	local input    = InputLink:GetValue(req)
+	local output   = Image({IMG_Like = input})
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		local tetra_in = {}
+		local tetra_out = {}
+		if p.B >= p.R and p.R >= p.G then
+			tetra_in = {vec3(0,0,0), vec3(0,0,1), vec3(1,0,1), vec3(1,1,1)}
+			tetra_out  = {vec3(blackx,blacky,blackz), vec3(bluex,bluey,bluez),    vec3(magentax,magentay,magentaz), vec3(whitex,whitey,whitez)}
+		elseif p.B >= p.G and p.G >= p.R then
+			tetra_in = {vec3(0,0,0), vec3(0,0,1), vec3(0,1,1), vec3(1,1,1)}
+			tetra_out  = {vec3(blackx,blacky,blackz), vec3(bluex,bluey,bluez),    vec3(cyanx,cyany,cyanz),          vec3(whitex,whitey,whitez)}
+		elseif p.G >= p.B and p.B >= p.R then
+			tetra_in = {vec3(0,0,0), vec3(0,1,0), vec3(0,1,1), vec3(1,1,1)}
+			tetra_out  = {vec3(blackx,blacky,blackz), vec3(greenx,greeny,greenz), vec3(cyanx,cyany,cyanz),          vec3(whitex,whitey,whitez)}
+		elseif p.R >= p.B and p.B >= p.G then
+			tetra_in = {vec3(0,0,0), vec3(1,0,0), vec3(1,0,1), vec3(1,1,1)}
+			tetra_out  = {vec3(blackx,blacky,blackz), vec3(redx,redy,redz),       vec3(magentax,magentay,magentaz), vec3(whitex,whitey,whitez)}
+		elseif p.R >= p.G and p.G >= p.B then
+			tetra_in = {vec3(0,0,0), vec3(1,0,0), vec3(1,1,0), vec3(1,1,1)}
+			tetra_out  = {vec3(blackx,blacky,blackz), vec3(redx,redy,redz),       vec3(yellowx,yellowy,yellowz),    vec3(whitex,whitey,whitez)}
+		else
+			tetra_in = {vec3(0,0,0), vec3(0,1,0), vec3(1,1,0), vec3(1,1,1)}
+			tetra_out  = {vec3(blackx,blacky,blackz), vec3(greenx,greeny,greenz), vec3(yellowx,yellowy,yellowz),    vec3(whitex,whitey,whitez)}
+		end
+		
+		pv = vec3(p.R, p.G, p.B)
+		pv2 = tetra_interp(pv, tetra_in, tetra_out)
+		p.R = pv2[1]
+		p.G = pv2[2]
+		p.B = pv2[3]
+
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function tetra_interp(point, src, tgt)
+	return tetra_bary_to_cart(tgt, to_tetra_bary(src, point))
+end
+
+function tetra_bary_to_cart(tetra, bary)
+    result = {}
+    result[1] = bary[1]*tetra[1].x + bary[2]*tetra[2].x + bary[3]*tetra[3].x + bary[4]*tetra[4].x
+    result[2] = bary[1]*tetra[1].y + bary[2]*tetra[2].y + bary[3]*tetra[3].y + bary[4]*tetra[4].y
+    result[3] = bary[1]*tetra[1].z + bary[2]*tetra[2].z + bary[3]*tetra[3].z + bary[4]*tetra[4].z
+    return result
+end
+
+function tetra_vol(a, b, c, d)
+    -- dont need to divide by 6 since it's all relative anyway
+    return math.abs(vec3.dot(a-d, vec3.cross(b-d, c-d)))
+end
+
+function to_tetra_bary(tetra, point)
+    result = {}
+    vol_bcdp = tetra_vol(tetra[2], tetra[3], tetra[4], point)
+    vol_cdap = tetra_vol(tetra[3], tetra[4], tetra[1], point)
+    vol_dabp = tetra_vol(tetra[4], tetra[1], tetra[2], point)
+    vol_abcp = tetra_vol(tetra[1], tetra[2], tetra[3], point)
+    vol_total = tetra_vol(tetra[1], tetra[2], tetra[3], tetra[4])
+    result[1] = vol_bcdp/vol_total
+    result[2] = vol_cdap/vol_total
+    result[3] = vol_dabp/vol_total
+    result[4] = vol_abcp/vol_total
+    return result
+end

@@ -1,0 +1,35 @@
+FuRegisterClass("Invert", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "Inv",
+   REGS_OpDescription = "Invert red, green, and blue channels",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		p.R = (p.R * -1) + 1
+		p.G = (p.G * -1) + 1
+		p.B = (p.B * -1) + 1
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end

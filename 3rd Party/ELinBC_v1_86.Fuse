@@ -1,0 +1,662 @@
+--[[--
+eLinBC.Fuse 
+by Stefan Ihringer <stefan@bildfehler.de>
+
+A Fuse that provides a contrast slider that is most useful for linear float image data (neutral gray point = 0.18)
+and mimics the sliders of "another popular compositing package" :-)
+
+Gamma, gain and offset (brightness) can either be a single slider or split into red, green and blue. The single
+slider acts as luminance slider for the RGB values so you can combine RGB, reset the single slider to 1.0 and then
+turn it into three separate sliders again. This allows for tinting that doesn't alter the perceived brightness.
+
+----------------------------------------------------------------------
+Copyright (c) 2012, Stefan Ihringer
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met: 
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer. 
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution. 
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+----------------------------------------------------------------------
+
+version 1.86, 2012-09-11: fixed crashing when switching between settings slots
+version 1.85, 2012-08-09: bugfix that finally allows you to animate sliders without causing an infinite loop
+version 1.8,  2012-08-04: mono input images are now turned into RGBA if one of the split checkboxes is activated
+                          proper implementation of RoI/DoD, requires Fusion 6.2+ now
+                          no longer turns float16 images into float32
+                          no longer removes aux channels
+                          added "Affect Canvas" option
+                          removed contrast midpoint option and advanced tab from GUI (edit global variable below to restore it)
+version 1.7,  2011-06-01: small UI fix for Fusion 6.2 (green and blue color sliders are now centered like the red slider)
+version 1.65, 2010-11-29: removed debug print() call. d'oh.
+version 1.6,  2010-11-18: another minor fix to make sure RGB can be restored even though the luminance was reduced to zero.
+version 1.5,  2010-11-17: rewrote color handling to fix serious bug (didn't restore values properly after reopening
+                          comp or after copy/paste). As a side effect, and to simplify the code, the color math
+						  dropdown has been removed. The combined slider now always acts as a luminance slider.
+						  HSV value is available in the expanded color wheel anyways.
+version 1.0,  2010-10-23: accepts DoD, cleaned up input attributes
+version 0.96, 2010-10-22: float16 images won't be converted to float32, monochannel image support, luminance math
+version 0.9,  2010-10-17: initial release
+--]]--
+
+version = "version 1.86, 2012-09-11"
+SHOW_MIDPOINT = false	-- set to true if you want to restore the advanced tab with its contrast midpoint option
+
+FuRegisterClass("eLinBC", CT_Tool, {
+	REGS_Name          = "eLin Brightness / Contrast",
+	REGS_Category      = "Color",
+	REGS_OpIconString  = "lBC",
+	REGS_OpDescription = "Color correction for linear float images",
+	REGS_Company       = "Stefan Ihringer",
+	REGS_URL           = "http://www.bildfehler.de",
+	REG_NoMotionBlurCtrls = true,
+	REGS_HelpTopic     = "http://www.vfxpedia.com/index.php?title=Third_Party_Fuses/ELinBC_Description",
+	REG_Fuse_TilePic   = eLinBC_Icon,
+	REG_Fuse_NoEdit    = true,
+	REG_Fuse_NoReload  = true,
+	REG_SupportsDoD    = true,
+	})
+
+function Create()
+	InSat = self:AddInput("Saturation", "Saturation", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Default = 1.0,
+		INP_MinScale = 0.0,
+		INP_MaxScale = 4.0,
+		INP_MinAllowed = 0.0,
+		ICD_Center = 1.0,
+		})
+
+	InContrast = self:AddInput("Contrast", "Contrast", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Default = 1.0,
+		INP_MinScale = 0.0,
+		INP_MaxScale = 4.0,
+		INP_MinAllowed = 0.0,
+		ICD_Center = 1.0,
+		})
+
+	-- gamma color wheel
+	InGammaR = self:AddInput("Red", "GammaRed", {
+		ICS_Name = "Gamma RGB",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		CLRC_ShowWheel = false,
+		INP_Default  = 1.0,
+		INP_MinScale = 0.2,
+		INP_MaxScale = 5.0,
+		INP_MinAllowed = 0.0,
+		ICD_Center = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 1,
+		IC_ControlID = 0,
+		IC_Visible = false,
+		})
+	InGammaG = self:AddInput("Green", "GammaGreen", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_Default  = 1.0,
+		INP_MinScale = 0.2,
+		INP_MaxScale = 5.0,
+		INP_MinAllowed = 0.0,
+		ICD_Center = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 1,
+		IC_ControlID = 1,
+		})
+	InGammaB = self:AddInput("Blue", "GammaBlue", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_Default  = 1.0,
+		INP_MinScale = 0.2,
+		INP_MaxScale = 5.0,
+		INP_MinAllowed = 0.0,
+		ICD_Center = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 1,
+		IC_ControlID = 2,
+		})
+	InGamma = self:AddInput("Gamma", "Gamma", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Default = 1.0,
+		INP_MinScale = 0.2,
+		INP_MaxScale = 5.0,
+		INP_MinAllowed = 0.0,
+		ICD_Center = 1.0,
+		INP_DoNotifyChanged = true,
+		})
+
+	-- gain color wheel
+	InGainR = self:AddInput("Red", "GainRed", {
+		ICS_Name = "Gain RGB",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		CLRC_ShowWheel = false,
+		INP_Default  = 1.0,
+		INP_MaxScale = 4.0,
+		ICD_Center = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 2,
+		IC_ControlID = 0,
+		IC_Visible = false,
+		})
+	InGainG = self:AddInput("Green", "GainGreen", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_Default  = 1.0,
+		INP_MaxScale = 4.0,
+		ICD_Center = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 2,
+		IC_ControlID = 1,
+		})
+	InGainB = self:AddInput("Blue", "GainBlue", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_Default  = 1.0,
+		INP_MaxScale = 4.0,
+		ICD_Center = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 2,
+		IC_ControlID = 2,
+		})
+	InGain = self:AddInput("Gain", "Gain", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Default = 1.0,
+		INP_MinScale = 0.0,
+		INP_MaxScale = 4.0,
+		ICD_Center = 1.0,
+		INP_DoNotifyChanged = true,
+		})
+
+	-- offset color wheel
+	InOffsetR = self:AddInput("Red", "OffsetRed", {
+		ICS_Name = "Offset RGB",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		CLRC_ShowWheel = false,
+		INP_Default  = 0.0,
+		INP_MinScale = -1.0,
+		INP_MaxScale = 1.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 3,
+		IC_ControlID = 0,
+		IC_Visible = false,
+		})
+	InOffsetG = self:AddInput("Green", "OffsetGreen", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_Default  = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 3,
+		IC_ControlID = 1,
+		})
+	InOffsetB = self:AddInput("Blue", "OffsetBlue", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_Default  = 0.0,
+		INP_DoNotifyChanged = true,
+		IC_ControlGroup = 3,
+		IC_ControlID = 2,
+		})
+	InOffset = self:AddInput("Offset", "Offset", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Default = 0.0,
+		INP_MinScale = -1.0,
+		INP_MaxScale = 1.0,
+		INP_DoNotifyChanged = true,
+		})
+
+	InSplitGamma = self:AddInput("Gamma RGB", "SplitGamma", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 0,
+		ICD_Width = 0.33,
+		INP_External = false,
+		INP_DoNotifyChanged = true,
+		})
+	InSplitGain = self:AddInput("Gain RGB", "SplitGain", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 0,
+		ICD_Width = 0.33,
+		INP_External = false,
+		INP_DoNotifyChanged = true,
+		})
+	InSplitOffset = self:AddInput("Offset RGB", "SplitOffset", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 0,
+		ICD_Width = 0.34,
+		INP_External = false,
+		INP_DoNotifyChanged = true,
+		})
+
+	InPrediv = self:AddInput("Pre-Divide / Post-Multiply", "PreDividePostMultiply", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 0,
+		})
+
+	InCanvas = self:AddInput("Affect Canvas", "AffectCanvas", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 1.0,
+		})			
+
+	-- advanced controls
+	if SHOW_MIDPOINT then
+		self:AddControlPage("Advanced")
+	end
+	InMidpoint = self:AddInput("Contrast Midpoint (Neutral Gray)", "Midpoint", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		IC_Visible = SHOW_MIDPOINT,
+		INP_Default = 0.18,
+		INP_MinScale = 0.0,
+		INP_MaxScale = 1.0,
+		INP_MinAllowed = 0.0001,
+		INP_MaxAllowed = 0.9999,
+		})
+
+	InLabel = self:AddInput(version, "version", {
+		LINKID_DataType = "Text",
+		INPID_InputControl = "LabelControl",
+		INP_External = false,
+		INP_Passive = true,
+		})
+
+	InImage = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+		})
+
+	OutImage = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+		})				
+end
+
+
+-- The custom Color class handles conversion from RGB to HSVL and vice-versa.
+ColorHSV = {
+	h = 0, s = 0, v = 0, l = 0, r = 0, g = 0, b = 0,
+	RGB2HSVL = function(self, new_r, new_g, new_b)
+			-- set and return HSVL values for given RGB color
+			-- based on RGB to HSV conversion methods from bzMultistepBlur.Fuse by Roman Fedotov
+			self.r, self.g, self.b = new_r, new_g, new_b
+			-- luma:
+			self.l = new_r * 0.299 + new_g * 0.587 + new_b * 0.114
+			-- hsv:
+			local cMin = math.min( new_r, new_g, new_b )
+			local cMax = math.max( new_r, new_g, new_b )
+			local delta = cMax - cMin
+			self.v = cMax
+			self.s = 0
+			self.h = 0
+			if self.v ~= 0 then
+				self.s = delta / cMax 
+			else
+				self.s = 0
+			end
+			if self.s == 0 then
+				self.h = 0
+			else
+				if new_r == self.v then
+					self.h = (new_g - new_b ) / delta
+				else
+					if new_g == self.v then
+						self.h = 2 + (new_b - new_r) / delta
+					else
+						self.h = 4 + (new_r - new_g) / delta
+					end
+				end
+				self.h = self.h * 60
+				if self.h < 0 then
+					self.h = self.h + 360
+				end
+			end
+			return self.h, self.s, self.v, self.l
+		end,
+	HSV2RGB = function(self, h, s, v)
+			self.h, self.s, self.v = h, s, v
+			if s == 0 then
+				if h == 0 then
+					self.r, self.g, self.b = v, v, v
+				else 
+					self.r, self.g, self.b = 0, 0, 0
+				end
+			else
+				if h == 360 then 
+					h = 0
+				end
+				h = h / 60
+				local i = math.floor(h)
+				local f = h - i
+				local p = v * ( 1 - s )
+				local q = v * ( 1 - s * f )
+				local t = v * ( 1 - s * (1 - f))
+				if i == 0 then
+					self.r, self.g, self.b = v, t, p
+				elseif i == 1 then
+					self.r, self.g, self.b = q, v, p
+				elseif i == 2 then
+					self.r, self.g, self.b = p, v, t
+				elseif i == 3 then
+					self.r, self.g, self.b = p, q, v
+				elseif i == 4 then
+					self.r, self.g, self.b = t, p, v
+				elseif i == 5 then
+					self.r, self.g, self.b = v, p, q
+				end
+			end
+			return self.r, self.g, self.b
+		end,
+	setLuminance = function(self, luma)
+			-- Set new Luminance and scale RGB accordingly
+			-- If luminance was zero, create a temporary color with the previous hue and saturation
+			-- that can be scaled.
+			if self.l == 0 then
+				self:HSV2RGB(self.h, self.s, 1)
+				self.l = self.r * 0.299 + self.g * 0.587 + self.b * 0.114
+			end
+			local factor = luma / self.l
+			self.r, self.g, self.b = self.r * factor, self.g * factor, self.b * factor
+			self.l = luma
+			self.v = math.max(self.r, self.g, self.b)
+		end,
+	setR = function(self, new_red)
+			self:RGB2HSVL(new_red, self.g, self.b)
+		end,
+	setG = function(self, new_green)
+			self:RGB2HSVL(self.r, new_green, self.b)
+		end,
+	setB = function(self, new_blue)
+			self:RGB2HSVL(self.r, self.g, new_blue)
+		end,
+	debug = function(self)
+		print(self.r,self.g,self.b,self.h,self.s,self.v,self.l)
+	end
+}
+
+-- constructor
+mt = {}
+mt.__index = ColorHSV
+function ColorHSV:new(s)
+	return setmetatable({ value = s or '' }, mt)
+end
+
+
+
+function NotifyChanged(inp, param, time)
+	-- By storing colors internally in HSVL space we can update the RGB sliders even
+	-- when they are hidden. This fixes the bug in version 1.0 where after copy&pasting,
+	-- some sliders might not carry the desired values.
+	if gammaHSV == nil then
+		gammaHSV = ColorHSV:new()
+		gammaHSV:RGB2HSVL(1, 1, 1)	-- init
+	end
+	if gainHSV == nil then
+		gainHSV = ColorHSV:new()
+		gainHSV:RGB2HSVL(1, 1, 1)	-- init
+	end
+	if offsetHSV == nil then
+		offsetHSV = ColorHSV:new()
+		offsetHSV:RGB2HSVL(0, 0, 0)	-- init
+	end
+
+	if inp == InGamma and gammaHSV.l ~= param.Value then
+		gammaHSV:setLuminance(param.Value)
+		InGammaR:SetSource(Number(gammaHSV.r), time, 0)
+		InGammaG:SetSource(Number(gammaHSV.g), time, 0)
+		InGammaB:SetSource(Number(gammaHSV.b), time, 0)
+	elseif inp == InGammaR and gammaHSV.r ~= param.Value then
+		gammaHSV:setR(param.Value)
+		InGamma:SetSource(Number(gammaHSV.l), time, 0)
+	elseif inp == InGammaG and gammaHSV.g ~= param.Value then
+		gammaHSV:setG(param.Value)
+		InGamma:SetSource(Number(gammaHSV.l), time, 0)
+	elseif inp == InGammaB and gammaHSV.b ~= param.Value then
+		gammaHSV:setB(param.Value)
+		InGamma:SetSource(Number(gammaHSV.l), time, 0)
+
+	elseif inp == InGain and gainHSV.l ~= param.Value then
+		gainHSV:setLuminance(param.Value)
+		InGainR:SetSource(Number(gainHSV.r), time, 0)
+		InGainG:SetSource(Number(gainHSV.g), time, 0)
+		InGainB:SetSource(Number(gainHSV.b), time, 0)
+	elseif inp == InGainR and gainHSV.r ~= param.Value then
+		gainHSV:setR(param.Value)
+		InGain:SetSource(Number(gainHSV.l), time, 0)
+	elseif inp == InGainG and gainHSV.g ~= param.Value then
+		gainHSV:setG(param.Value)
+		InGain:SetSource(Number(gainHSV.l), time, 0)
+	elseif inp == InGainB and gainHSV.b ~= param.Value then
+		gainHSV:setB(param.Value)
+		InGain:SetSource(Number(gainHSV.l), time, 0)
+
+	elseif inp == InOffset and offsetHSV.l ~= param.Value then
+		offsetHSV:setLuminance(param.Value)
+		InOffsetR:SetSource(Number(offsetHSV.r), time, 0)
+		InOffsetG:SetSource(Number(offsetHSV.g), time, 0)
+		InOffsetB:SetSource(Number(offsetHSV.b), time, 0)
+	elseif inp == InOffsetR and offsetHSV.r ~= param.Value then
+		offsetHSV:setR(param.Value)
+		InOffset:SetSource(Number(offsetHSV.l), time, 0)
+	elseif inp == InOffsetG and offsetHSV.g ~= param.Value then
+		offsetHSV:setG(param.Value)
+		InOffset:SetSource(Number(offsetHSV.l), time, 0)
+	elseif inp == InOffsetB and offsetHSV.b ~= param.Value then
+		offsetHSV:setB(param.Value)
+		InOffset:SetSource(Number(offsetHSV.l), time, 0)
+	end
+	
+	-- handle RGB-split checkboxes
+	if inp == InSplitGamma then
+		if (param.Value > 0.5) then
+			-- enable gamma split
+			InGamma:SetAttrs({IC_Visible = false})
+			InGammaR:SetAttrs({IC_Visible = true})
+		else
+			-- disable gamma split
+			InGamma:SetAttrs({IC_Visible = true})
+			InGammaR:SetAttrs({IC_Visible = false})
+		end
+	elseif inp == InSplitGain then
+		if (param.Value > 0.5) then
+			-- enable gain split
+			InGain:SetAttrs({IC_Visible = false})
+			InGainR:SetAttrs({IC_Visible = true})
+		else
+			-- disable gain split
+			InGain:SetAttrs({IC_Visible = true})
+			InGainR:SetAttrs({IC_Visible = false})
+		end
+	elseif inp == InSplitOffset then
+		if (param.Value > 0.5) then
+			-- enable offset split
+			InOffset:SetAttrs({IC_Visible = false})
+			InOffsetR:SetAttrs({IC_Visible = true})
+		else
+			-- disable offset split
+			InOffset:SetAttrs({IC_Visible = true})
+			InOffsetR:SetAttrs({IC_Visible = false})
+		end
+	end
+end
+
+
+-- needed to tell Fusion about correct output image depth (mono images might be promoted to RGBA)
+function PrecalcProcess(req)
+	local img        = InImage:GetValue(req)
+	local isMono     = img.Depth <= IMDP_32bitFloat
+	local gammasplit = (InSplitGamma:GetValue(req).Value > 0.5)
+	local gainsplit  = (InSplitGain:GetValue(req).Value > 0.5)
+	local offsetsplit= (InSplitOffset:GetValue(req).Value > 0.5)
+	local makeRGBA   = (isMono == false) or gammasplit or gainsplit or offsetsplit				-- produce RGBA output? 
+
+	local dod = req:GetInputDoD(InImage)
+	local datawnd = dod:Intersect(img.DataWindow)
+
+	local out_depth = img.Depth
+	if isMono and makeRGBA then
+		out_depth = out_depth + 4
+	end
+	local out = Image({IMG_Like = img,
+	                   IMG_NoData = true,
+	                   IMG_DataWindow = datawnd,
+		               IMG_Depth = out_depth,
+		               IMG_CopyChannels = not (isMono and makeRGBA)} )		-- will automatically create RGBA or A depending on IMG_Depth
+
+	OutImage:Set(req, out)
+end
+
+
+function Process(req)
+	local img        = InImage:GetValue(req)
+	local isMono     = img.Depth <= IMDP_32bitFloat
+	local saturation = InSat:GetValue(req).Value
+	local contrast   = InContrast:GetValue(req).Value
+	local midpoint   = math.min(0.9999, math.max(0.0001, InMidpoint:GetValue(req).Value))
+	local gammasplit = (InSplitGamma:GetValue(req).Value > 0.5)
+	local gamma      = InGamma:GetValue(req).Value
+	local gamma_r    = InGammaR:GetValue(req).Value
+	local gamma_g    = InGammaG:GetValue(req).Value
+	local gamma_b    = InGammaB:GetValue(req).Value
+	local gainsplit  = (InSplitGain:GetValue(req).Value > 0.5)
+	local gain       = InGain:GetValue(req).Value
+	local gain_r     = InGainR:GetValue(req).Value
+	local gain_g     = InGainG:GetValue(req).Value
+	local gain_b     = InGainB:GetValue(req).Value
+	local offsetsplit= (InSplitOffset:GetValue(req).Value > 0.5)
+	local offset     = InOffset:GetValue(req).Value
+	local offset_r   = InOffsetR:GetValue(req).Value
+	local offset_g   = InOffsetG:GetValue(req).Value
+	local offset_b   = InOffsetB:GetValue(req).Value
+	local do_canvas  = ( InCanvas:GetValue(req).Value > 0.5 )
+	local makeRGBA   = (isMono == false) or gammasplit or gainsplit or offsetsplit				-- produce RGBA output? 
+	local prediv     = (isMono == false) and (InPrediv:GetValue(req).Value > 0.5) or false		-- no prediv/postmult for mono images
+
+
+	local old_depth = img.Depth
+	local dod, roi = req:GetInputDoD(InImage), req:GetRoI()
+	local datawnd = dod:Intersect(img.DataWindow)
+	if roi then
+		datawnd = roi:Intersect(datawnd)
+	end
+
+	-- create 32bit float image for internal use. if input is mono but one of the split checkboxes is
+	-- enabled, turn the result into an RGBA image (allows you to tint mask shapes).
+	local img_temp = Image({ IMG_Like = img,
+	                         IMG_DataWindow = datawnd,
+	                         IMG_ValidWindow = roi and roi.ValidWindow,
+	                         IMG_Depth = ((makeRGBA == true) and IMDP_128bitFloat or IMDP_32bitFloat),
+	                         IMG_CopyChannels = false })			-- will automatically create RGBA or A depending on IMG_Depth
+	img:Crop(img_temp, {})
+	
+	if prediv then
+		img_temp:AlphaDivide()
+	end
+
+	-- saturation (except for mono images and if image will be turned to gray later on anyways)
+	if saturation ~= 1 and contrast ~= 0 and isMono == false then
+		img_temp:Saturate(saturation, saturation, saturation)
+	end
+	
+	-- contrast
+	if contrast == 0 then
+		img_temp:Fill(Pixel({R = midpoint, G = midpoint, B = midpoint, A = midpoint}))
+	elseif contrast ~= 1 then
+		-- mono images have an alpha channel only, so we do all processing on the alpha channel as well
+		-- and just copy the original alpha channel back at the end...
+		img_temp:Gain(1 / midpoint, 1 / midpoint, 1 / midpoint, 1 / midpoint)
+		img_temp:Gamma(1 / contrast, 1 / contrast, 1 / contrast, 1 / contrast)
+		img_temp:Gain(midpoint, midpoint, midpoint, midpoint)
+	end
+
+	-- gamma
+	if not gammasplit then
+		gamma_r = gamma
+		gamma_g = gamma
+		gamma_b = gamma
+	end
+	img_temp:Gamma(gamma_r, gamma_g, gamma_b, gamma)
+
+	-- gain & offset
+	if not gainsplit then
+		gain_r = gain
+		gain_g = gain
+		gain_b = gain
+	end
+	if not offsetsplit then
+		offset_r = offset
+		offset_g = offset
+		offset_b = offset
+	end
+	local m = ColorMatrixFull()
+	m:Identity()
+	m:Scale(gain_r, gain_g, gain_b, gain)
+	m:Offset(offset_r, offset_g, offset_b, offset)
+	img_temp = img_temp:ApplyMatrixOf(m, {})
+
+	-- restore alpha channel on RGBA images
+	if makeRGBA then
+		img_temp = img_temp:ChannelOpOf("Copy", img, {A = "fg.A"})
+	end
+
+	if prediv then
+		img_temp:AlphaMultiply()
+	end
+
+	local out_depth = img.Depth
+	if isMono and makeRGBA then
+		out_depth = out_depth + 4
+	end
+	local out = Image( {IMG_Like = img,
+	                    IMG_DataWindow = datawnd,
+	                    IMG_ValidWindow = roi and roi.ValidWindow,
+	                    IMG_Depth = out_depth,
+	                    IMG_CopyChannels = not (isMono and makeRGBA)} )		-- will automatically create RGBA or A depending on IMG_Depth
+
+	-- copy aux channels (if any) from input image, then copy modified RGBA (or A for mono output)
+	img:Crop(out, {})
+	if makeRGBA then
+		out = out:ChannelOpOf("Copy", img_temp, {R = "fg.R", G = "fg.G", B = "fg.B", A = "fg.A"})
+	else
+		out = out:ChannelOpOf("Copy", img_temp, {A = "fg.A"})
+	end
+
+	if not do_canvas then 
+		local canvaspixel = Pixel()
+		img:GetCanvasColor(canvaspixel)
+		out:SetCanvasColor(canvaspixel)
+	end
+	OutImage:Set(req, out)
+	
+end
+

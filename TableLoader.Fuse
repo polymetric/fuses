@@ -1,0 +1,79 @@
+FuRegisterClass("TableLoader", CT_Tool, {
+   REGS_Category = "Analysis",
+   REGS_OpIconString = "TLD",
+   REGS_OpDescription = "Loads an ASCII file of pixel values and places them in a 1-by-x pixel image.",
+   
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+black = Pixel({R = 0, G = 0, B = 0, A = 1})
+
+function Create()
+	InFile = self:AddInput("File", "File", {
+		LINKID_DataType = "Text",
+		INPID_InputControl =  "FileControl",
+	})
+		
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	print()
+	print("NEW FRAME")
+	print()
+	
+	local file = io.open(InFile:GetValue(req).Value, "r");
+	local arr = {}
+	
+	for line in file:lines() do
+		table.insert (arr, line);
+	end
+	
+	local width = tablelength(arr)
+
+	local image_attribs = {
+		IMG_Width = width,
+		IMG_Height = 1,
+		IMG_Depth = 8, 
+		IMG_XScale = 1.0,
+		IMG_YScale = 1.0,
+		IMG_Quality = not req:IsQuick(),
+		IMG_MotionBlurQuality = not req:IsNoMotionBlur(),
+		IMG_Document = self.Comp,
+		{ IMG_Channel = "Red", },
+		{ IMG_Channel = "Green", },
+		{ IMG_Channel = "Blue", },
+		{ IMG_Channel = "Alpha", },
+	}
+	
+	local output = Image(image_attribs)
+	
+	output:Fill(black)
+	
+	for x = 1, output.Width do
+		channels = {}
+		for c in arr[x]:gmatch("%S+") do table.insert(channels, c) end
+		r = tonumber(channels[1])
+		g = tonumber(channels[2])
+		b = tonumber(channels[3])
+		if g == nil then
+			output:SetPixel(x-1, 0, Pixel({R = r, G = r, B = r, A = 1}))
+		else
+			output:SetPixel(x-1, 0, Pixel({R = r, G = g, B = b, A = 1}))
+		end
+	end
+	
+	OutputLink:Set(req, output)
+end
+
+function tablelength(T)
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
+end

@@ -1,0 +1,112 @@
+FuRegisterClass("LevelsRGB", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "LVRGB",
+   REGS_OpDescription = "RGB Levels",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+-- PARAMETERS
+
+function Create()
+	InRMin = self:AddInput("Red Min", "RedMin", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = 0.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 0.0,
+		ICS_Name = "Min",
+		IC_ControlGroup = 1,
+		IC_ControlID = 0,
+		})
+		
+	InGMin = self:AddInput("Green Min", "GreenMin", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = 0.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 0.0,
+		IC_ControlGroup = 1,
+		IC_ControlID = 1,
+		})
+		
+	InBMin = self:AddInput("Blue Min", "BlueMin", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = 0.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 0.0,
+		IC_ControlGroup = 1,
+		IC_ControlID = 2,
+		})
+		
+		
+	InRMax = self:AddInput("Red Max", "RedMax", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = 0.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 1.0,
+		ICS_Name = "Max",
+		IC_ControlGroup = 2,
+		IC_ControlID = 0,
+		})
+		
+	InGMax = self:AddInput("Green Max", "GreenMax", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = 0.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 1.0,
+		IC_ControlGroup = 2,
+		IC_ControlID = 1,
+		})
+		
+	InBMax = self:AddInput("Blue Max", "BlueMax", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ColorControl",
+		INP_MinScale = 0.0,
+		INP_MaxScale = 1.0,
+		INP_Default  = 1.0,
+		IC_ControlGroup = 2,
+		IC_ControlID = 2,
+		})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local r_min = InRMin:GetValue(req).Value
+	local r_max = InRMax:GetValue(req).Value
+	local g_min = InGMin:GetValue(req).Value
+	local g_max = InGMax:GetValue(req).Value
+	local b_min = InBMin:GetValue(req).Value
+	local b_max = InBMax:GetValue(req).Value
+	
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input})
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		p.R = Map(p.R, r_min, r_max, 0, 1)
+		p.G = Map(p.G, g_min, g_max, 0, 1)
+		p.B = Map(p.B, b_min, b_max, 0, 1)
+		
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function Map(x, in_min, in_max, out_min, out_max)
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+end

@@ -1,0 +1,175 @@
+FuRegisterClass("LogExposure", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "LEX",
+   REGS_OpDescription = "Change exposure using stops instead of gain",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+-- PARAMETERS
+
+function Create()
+	InLogType = self:AddInput("Input Type", "Input Type", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Linear", },
+		{ CCS_AddString = "Log10", },
+		{ CCS_AddString = "Cineon", },
+		{ CCS_AddString = "Arri LogC", },
+		{ CCS_AddString = "Red Log3G10", },
+		CC_LabelPosition = "Horizontal",	
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InRed = self:AddInput("Red", "Red", {
+		LINKS_Name = "Red",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 20,
+		INP_MinScale = -20,
+		INP_Default = 0,
+		ICD_Center = 0,
+	})
+
+	InGreen = self:AddInput("Green", "Green", {
+		LINKS_Name = "Green",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 20,
+		INP_MinScale = -20,
+		INP_Default = 0,
+		ICD_Center = 0,
+	})
+
+	InBlue = self:AddInput("Blue", "Blue", {
+		LINKS_Name = "Blue",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 20,
+		INP_MinScale = -20,
+		INP_Default = 0,
+		ICD_Center = 0,
+	})
+
+	InExp = self:AddInput("Exposure", "Exposure", {
+		LINKS_Name = "Exposure",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_Integer = false,
+		INP_MaxScale = 20,
+		INP_MinScale = -20,
+		INP_Default = 0,
+		ICD_Center = 0,
+	})
+
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function printer_light(x, o)
+	-- return 2 ^ (math.log(x, 2) + o)
+	return x * (2 ^ o)
+end
+
+function log_decode(x, log_type)
+	if log_type == 0 then
+		-- already linear
+		return x
+	elseif log_type == 1 then
+		-- common log 10
+		return 10 ^ x
+	elseif log_type == 2 then
+		-- cineon
+		-- not implemented
+		-- friggin cineon is super hard to figure out and i never use it
+	elseif log_type == 3 then
+		local cut = 0.010591
+		local a = 5.555556
+		local b = 0.052272
+		local c = 0.247190
+		local d = 0.385537
+		local e = 5.367655
+		local f = 0.092809
+		
+		if x > e * cut + f then
+			return (math.pow(10, (x - d) / c) - b) / a
+		else
+			return (x - f) / e
+		end
+	end
+end
+
+function log_encode(x, log_type)
+	if log_type == 0 then
+		-- already linear
+		return x
+	elseif log_type == 1 then
+		-- common log 10
+		return math.log10(x)
+	elseif log_type == 2 then
+		-- cineon
+		-- not implemented
+		-- friggin cineon is super hard to figure out exactly and i never use it
+	elseif log_type == 3 then
+		local cut = 0.010591
+		local a = 5.555556
+		local b = 0.052272
+		local c = 0.247190
+		local d = 0.385537
+		local e = 5.367655
+		local f = 0.092809
+		
+		if x > cut then
+			return c * math.log10(a * x + b) + d
+		else
+			return e * x + f
+		end
+	end
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	
+	local log_type = InLogType:GetValue(req).Value
+	
+	local lvl_r = InRed:GetValue(req).Value
+	local lvl_g = InGreen:GetValue(req).Value
+	local lvl_b = InBlue:GetValue(req).Value
+	local lvl_e = InExp:GetValue(req).Value
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		-- delog
+		p.R = log_decode(p.R, log_type)
+		p.G = log_decode(p.G, log_type)
+		p.B = log_decode(p.B, log_type)
+	
+		-- apply offsets
+		p.R = printer_light(p.R, lvl_r+lvl_e)
+		p.G = printer_light(p.G, lvl_g+lvl_e)
+		p.B = printer_light(p.B, lvl_b+lvl_e)
+		
+		-- convert back to the input log
+		p.R = log_encode(p.R, log_type)
+		p.G = log_encode(p.G, log_type)
+		p.B = log_encode(p.B, log_type)
+		
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end

@@ -1,0 +1,209 @@
+FuRegisterClass("MatchToneMap", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "MTM",
+   REGS_OpDescription = "Map one system's tonal response to another's using 1D linear interpolation",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+--
+-- this fuse takes a source and a target chart, each consisting of a 1-pixel tall
+-- by x-pixels wide row of patches, and applies the resulting curve to its primary
+-- input.
+--
+-- the patches for the target chart should correspond to the grayscale values of
+-- the gamma/log space to convert to. create this by either:
+--
+-- A. doing an exposure sweep of a gray card with the camera set to the target space,
+-- or B. using the DynamicRangeChartTarget fuse and applying the encoding.
+--
+-- the source chart is the same thing, but an exposure sweep the same gray card
+-- but taken with the camera whose response you wish to map onto the target's.
+--
+-- alternatively you can steal a 3D LUT's tone curve by applying the LUT to a
+-- Background with a horizontal gradient of black to white, routing it into the
+-- target input, then simply routing the same Background directly to the source
+-- input (bypassing the LUT.)
+--
+
+local extrapolate_lower = false
+local extrapolate_upper = false
+
+function Create()
+	InModeLo = self:AddInput("Lower Mode", "ModeLo", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 1,
+		{ CCS_AddString = "Extrapolate", },
+		{ CCS_AddString = "Hard clip", },
+		CC_LabelPosition = "Horizontal",	
+		ICD_Width = 1,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InModeHi = self:AddInput("Upper Mode", "ModeHi", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 1,
+		{ CCS_AddString = "Extrapolate", },
+		{ CCS_AddString = "Hard clip", },
+		CC_LabelPosition = "Horizontal",	
+		ICD_Width = 1,
+		INP_DoNotifyChanged = true,
+	})
+	
+	SourceLink = self:AddInput("Source", "Source", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	TargetLink = self:AddInput("Target", "Target", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local img_src = SourceLink:GetValue(req)
+	local img_tgt = TargetLink:GetValue(req)
+	local img_in = InputLink:GetValue(req)
+	local img_out = Image({IMG_Like = img_in})
+	local points = math.min(img_src.Width, img_tgt.Width)
+	
+	if InModeHi:GetValue(req).Value == 0 then
+		extrapolate_upper = true
+	else
+		extrapolate_upper = false
+	end
+	
+	if InModeLo:GetValue(req).Value == 0 then
+		extrapolate_lower = true
+	else
+		extrapolate_lower = false
+	end
+	
+	local table_src_r = {}
+	local table_src_g = {}
+	local table_src_b = {}
+	
+	local table_tgt_r = {}
+	local table_tgt_g = {}
+	local table_tgt_b = {}
+	
+	print()
+	print("NEW FRAME")
+	print()
+	
+	-- this actually scans the source and target charts and creates a sparse lookup table,
+	-- its dimension equal to the number of patches on whichever chart is shortest
+	for x = 1, points do
+		p_src = Pixel()
+		p_tgt = Pixel()
+		
+		img_src:GetPixel(x - 1, 0, p_src)
+		img_tgt:GetPixel(x - 1, 0, p_tgt)
+		
+		table_src_r[x] = p_src.R
+		table_src_g[x] = p_src.G
+		table_src_b[x] = p_src.B
+		
+		table_tgt_r[x] = p_tgt.R
+		table_tgt_g[x] = p_tgt.G
+		table_tgt_b[x] = p_tgt.B
+		
+		-- debug, prints the differences between every two patches on the source chart (green channel only)
+		-- if x > 0 then
+			-- print(x .. " " .. table_src_g[x] - table_src_g[x - 1])
+		-- end
+		
+		-- debug, prints the generated sparse 1D LUT
+		-- print(x)
+		-- print(table_src_r[x] .. " " .. table_tgt_r[x])
+		-- print(table_src_g[x] .. " " .. table_tgt_g[x])
+		-- print(table_src_b[x] .. " " .. table_tgt_b[x])
+		-- print()
+	end
+	
+	img_out:ProcessPixels(0, 0, img_in.Width, img_in.Height, img_in, function(x, y, p)
+		p.R = process_channel(p.R, table_src_r, table_tgt_r)
+		p.G = process_channel(p.G, table_src_g, table_tgt_g)
+		p.B = process_channel(p.B, table_src_b, table_tgt_b)
+		
+		return p
+	end)
+	
+	OutputLink:Set(req, img_out)
+end
+
+-- linear interpolation from wikipedia
+function lerp(x, x0, y0, x1, y1)
+	return y0 + (x - x0) * ((y1 - y0) / (x1 - x0))
+end
+
+-- does the same thing to all 3 channels
+function process_channel(x, table_src, table_tgt)
+	-- print()
+	-- print("NEW CHANNEL")
+
+	i0 = 0
+	i1 = 0
+	
+	if x <= table_src[1] then
+		-- x is lower than the lowest input value on our lookup table
+		-- which means we have to extrapolate downwards or hard clip
+		if extrapolate_lower then
+			i0 = 1
+			i1 = 2
+		else
+			return table_tgt[1]
+		end
+	else
+		-- note that this does not loop thru all possible channel values,
+		-- it simply loops thru the sparse (20 or so points) lookup tables
+		for i in ipairs(table_src) do
+			if table_src[i + 1] == nil then
+				-- if the above is true then i is the last point in the table
+				-- so we have to extrapolate upwards or clip
+				if extrapolate_upper then
+					i0 = i - 1
+					i1 = i
+					break
+				else
+					return table_tgt[i]
+				end
+			end
+		
+			if table_src[i] <= x and x <= table_src[i + 1] then
+				-- this applies to the majority of the curve.
+				-- we should have ruled out all edge cases above
+				-- print("found the two points that x is in between above")
+				i0 = i
+				i1 = i + 1
+				
+				break
+			else
+				-- print(table_src[i] <= x)
+				-- print(x <= table_src[i+1])
+			end
+		end
+	end
+	
+	x0 = table_src[i0]
+	x1 = table_src[i1]
+	y0 = table_tgt[i0]
+	y1 = table_tgt[i1]
+	
+	return lerp(x, x0, y0, x1, y1)
+end

@@ -1,0 +1,75 @@
+FuRegisterClass("AddNoise", CT_Tool, {
+   REGS_Category = "Fuses",
+   REGS_OpIconString = "ANS",
+   REGS_OpDescription = "Adds noise to an image",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+function Create()
+	InAmount = self:AddInput("Amount", "Amount", {
+		LINKS_Name = "Amount",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_MaxScale = 1.0,
+		INP_Default = 0.5,
+		ICD_Center = 0.0,
+	})
+	
+	InColor = self:AddInput("Color", "Color", {
+		LINKS_Name = "Color",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "CheckboxControl",
+		INP_Integer = true,
+		INP_Default = 1.0,
+		ICD_Width = 1.0,
+	})
+
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	local color = InColor:GetValue(req).Value
+	
+	local amount = InAmount:GetValue(req).Value
+	local random = math.random -- faster in a local
+	
+	print(color)
+	
+	if color == 1 then
+		print("color == 1")
+		output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+				p.R = p.R + random() * amount
+				p.G = p.G + random() * amount
+				p.B = p.B + random() * amount
+			return p
+		end)
+	else
+		print("color == 0")
+		output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+				temp = random()
+				p.R = p.R + temp * amount
+				p.G = p.G + temp * amount
+				p.B = p.B + temp * amount
+			return p
+		end)
+	end
+	
+	OutputLink:Set(req, output)
+end
+
+function Map(x, in_min, in_max, out_min, out_max)
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+end

@@ -1,0 +1,72 @@
+--[[--
+ClipRange.fuse 
+
+An example Fuse which will clamps the high and low ranges values of the Red, Green, Blue, and Alpha values of an image using range controls.
+
+version 1.0
+August 21st, 2007
+--]]--
+
+FuRegisterClass("Clip", CT_Tool, {
+	REGS_Category = "Fuses",
+	REGS_OpIconString = "C",
+	REGS_OpDescription = "Clip-Range Fuse",
+	})
+
+function Create()
+	InLow = self:AddInput("Low", "Low", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "RangeControl",
+		INP_Default = 0.0,
+		IC_ControlGroup = 1,
+		IC_ControlID = 0,
+		})			
+	
+	InHigh = self:AddInput("High", "High", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "RangeControl",
+		INP_Default = 1.0,
+		IC_ControlGroup = 1,
+		IC_ControlID = 1,
+		})
+		
+	InImage = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+		})
+
+	OutImage = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+		})				
+end
+
+function mpfunc(x,y, p)
+	
+	p.R = math.max(math.min(p.R, rhigh), rlow)
+	p.G = math.max(math.min(p.G, ghigh), glow)
+	p.B = math.max(math.min(p.B, bhigh), blow)
+	-- p.A = math.max(math.min(p.A, ahigh), alow)
+	
+	return p
+end
+
+function Process(req)
+	local img  = InImage:GetValue(req)
+	
+	mpdata = {}
+	mpdata.rlow  = InLow:GetValue(req).Value
+	mpdata.rhigh = InHigh:GetValue(req).Value
+	mpdata.glow  = InLow:GetValue(req).Value
+	mpdata.ghigh = InHigh:GetValue(req).Value
+	mpdata.blow  = InLow:GetValue(req).Value
+	mpdata.bhigh = InHigh:GetValue(req).Value
+	mpdata.alow  = InLow:GetValue(req).Value
+	mpdata.ahigh = InHigh:GetValue(req).Value
+	
+	local out = Image({IMG_Like = img})
+	
+	out:MultiProcessPixels(nil, mpdata, 0,0, img.Width, img.Height, img, mpfunc)
+	
+	OutImage:Set(req, out)
+end

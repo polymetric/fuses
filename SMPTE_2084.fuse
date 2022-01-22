@@ -1,0 +1,87 @@
+FuRegisterClass("SMPTE2084", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "SMPTE2084",
+   REGS_OpDescription = "Encode or decode SMPTE 2084",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+local m1 = 2610/16384
+local m2 = 2523/4096 * 128
+local c1 = 3424/4096
+local c2 = 2413/4096 * 32
+local c3 = 2392/4096 * 32
+
+function Create()
+	InMode = self:AddInput("Mode", "Mode", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Encode", },
+		{ CCS_AddString = "Decode", },
+		CC_LabelPosition = "Horizontal",	
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InLinearType = self:AddInput("Linear Type", "LinearType", {
+		LINKID_DataType = "Number",
+		INPID_InputControl = "ComboControl",
+		INP_Default = 0,
+		{ CCS_AddString = "Scene Linear (1.0 = 100 nits)", },
+		{ CCS_AddString = "Display Linear (1.0 = 10000 nits)", },
+		CC_LabelPosition = "Horizontal",
+		ICD_Width = 0.5,
+		INP_DoNotifyChanged = true,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input, IMG_Depth = 8})
+	
+	local mode = InMode:GetValue(req).Value
+	local lin_type = InLinearType:GetValue(req).Value
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		if mode == 0 then 
+			p.R = encode(p.R, lin_type)
+			p.G = encode(p.G, lin_type)
+			p.B = encode(p.B, lin_type)
+		elseif mode == 1 then
+			p.R = decode(p.R, lin_type)
+			p.G = decode(p.G, lin_type)
+			p.B = decode(p.B, lin_type)
+		end
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function encode(l, lin_type)
+	if lin_type == 0 then
+		l = l / 100
+	end
+	return math.max(((c1+c2*l^m1)/(1+c3*l^m1))^m2, 0)
+end
+
+function decode(v, lin_type)
+	v = (math.max(v^(1/m2)-c1, 0)/(c2-c3*(v^(1/m2))))^(1/m1)
+	if lin_type == 0 then
+		v = v * 100
+	end
+	return v
+end

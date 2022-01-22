@@ -1,0 +1,82 @@
+FuRegisterClass("Levels", CT_Tool, {
+   REGS_Category = "Color",
+   REGS_OpIconString = "LV",
+   REGS_OpDescription = "Levels",
+   REG_OpNoMask = true,
+   REG_NoBlendCtrls = true,
+   REG_NoObjMatCtrls = true,
+   REG_NoMotionBlurCtrls = true,
+})
+
+-- PARAMETERS
+
+function Create()
+	InMin = self:AddInput("In Min", "InMin", {
+		LINKS_Name = "In Min",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_MaxScale = 2.0,
+		INP_Default = 0.0,
+		ICD_Center = 0.0,
+	})
+	
+	InMax = self:AddInput("In Max", "InMax", {
+		LINKS_Name = "In Max",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_MaxScale = 2.0,
+		INP_Default = 1.0,
+		ICD_Center = 1.0,
+	})
+	
+	OutMin = self:AddInput("Out Min", "OutMin", {
+		LINKS_Name = "Out Min",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_MaxScale = 2.0,
+		INP_Default = 0.0,
+		ICD_Center = 0.0,
+	})
+	
+	OutMax = self:AddInput("Out Max", "OutMax", {
+		LINKS_Name = "Out Max",
+		LINKID_DataType = "Number",
+		INPID_InputControl = "SliderControl",
+		INP_MaxScale = 2.0,
+		INP_Default = 1.0,
+		ICD_Center = 1.0,
+	})
+	
+	InputLink = self:AddInput("Input", "Input", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+	
+	OutputLink = self:AddOutput("Output", "Output", {
+		LINKID_DataType = "Image",
+		LINK_Main = 1,
+	})
+end
+
+function Process(req)
+	local in_min = InMin:GetValue(req).Value
+	local in_max = InMax:GetValue(req).Value
+	local out_min = OutMin:GetValue(req).Value
+	local out_max = OutMax:GetValue(req).Value
+	local input = InputLink:GetValue(req)
+	local output = Image({IMG_Like = input})
+	
+	output:ProcessPixels(0, 0, input.Width, input.Height, input, function(x, y, p)
+		p.R = Map(p.R, in_min, in_max, out_min, out_max)
+		p.G = Map(p.G, in_min, in_max, out_min, out_max)
+		p.B = Map(p.B, in_min, in_max, out_min, out_max)
+		
+		return p
+	end)
+	
+	OutputLink:Set(req, output)
+end
+
+function Map(x, in_min, in_max, out_min, out_max)
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+end
